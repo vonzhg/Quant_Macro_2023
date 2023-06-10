@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from multiprocessing import Pool
 
 # Parameters
 alpha = 0.4
@@ -15,6 +16,30 @@ k_grid = np.linspace(k_min, k_max, n_k)
 # Initial guess for value function
 V_old = np.zeros(n_k)
 
+def max_value_and_policy(i):
+    k = k_grid[i]
+    max_value = -1e10
+    policy_k_plus = 0.0
+
+    # Loop over all possible k'
+    for j in range(n_k):
+        k_plus = k_grid[j]
+
+        # Check the budget constraint
+        if k ** alpha - k_plus >= 0:
+            # Consumption
+            c = k ** alpha - k_plus
+
+            # Value of this choice
+            value = np.log(c) + beta * V_old[j]
+
+            # Update maximum value and policy function
+            if value > max_value:
+                max_value = value
+                policy_k_plus = k_plus
+
+    return max_value, policy_k_plus
+
 while True:
     # Allocate memory to store new value function
     V_new = np.zeros(n_k)
@@ -22,28 +47,13 @@ while True:
     # Policy function
     policy = np.zeros(n_k)
 
-    # Loop over all states
-    for i in range(n_k):
-        k = k_grid[i]
-        max_value = -1e10
+    # Use a pool of workers
+    with Pool() as p:
+        results = p.map(max_value_and_policy, range(n_k))
 
-        # Loop over all possible k'
-        for j in range(n_k):
-            k_plus = k_grid[j]
-
-            # Check the budget constraint
-            if k ** alpha - k_plus >= 0:
-                # Consumption
-                c = k ** alpha - k_plus
-
-                # Value of this choice
-                value = np.log(c) + beta * V_old[j]
-
-                # Update maximum value and policy function
-                if value > max_value:
-                    max_value = value
-                    V_new[i] = value
-                    policy[i] = k_plus
+    # Unpack results
+    for i, result in enumerate(results):
+        V_new[i], policy[i] = result
 
     # Check the convergence criteria
     if np.max(np.abs(V_old - V_new)) < tol:
